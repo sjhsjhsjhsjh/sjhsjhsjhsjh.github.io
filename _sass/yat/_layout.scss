@@ -436,6 +436,7 @@ html {
   }
 
   .post-content {
+    font-size: 21px;
     margin-bottom: $spacing-unit;
     overflow-wrap: normal;
     word-wrap: normal;
@@ -488,6 +489,10 @@ html {
       background-color: #ebebeb;
       border: none;
     }
+
+    blockquote {
+      font-size: 20px;
+    }
   }
 
   .post-related {
@@ -513,7 +518,7 @@ html {
 }
 
 .post-comments {
-  padding-top: 25px;
+  padding-top: 20px;
 }
 
 /**
