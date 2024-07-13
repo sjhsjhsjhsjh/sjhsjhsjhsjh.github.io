@@ -1,7 +1,7 @@
 ---
 layout: post
 title: verilog键盘输入示例代码及分析（摩尔型有限状态机）
-subtitle: “一生一芯”项目笔记
+subtitle: “一生一芯”项目笔记；封面：黑龙江哈尔滨市松峰山观星台景
 author: 永清
 categories: verilog
 banner:

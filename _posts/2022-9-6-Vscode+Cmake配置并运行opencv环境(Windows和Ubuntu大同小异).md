@@ -1,7 +1,7 @@
 ---
 layout: post
 title: Vscode+Cmake配置并运行opencv环境(Windows和Ubuntu大同小异)
-subtitle: vscode+cmake配置
+subtitle: vscode+cmake配置；封面：永清
 author: 永清
 categories: OpenCV
 banner:

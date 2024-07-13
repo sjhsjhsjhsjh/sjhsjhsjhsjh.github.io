@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 一文看懂map、odom、base_link、laser之间的tf关系
-subtitle: ROS系统下几个坐标系详解
+subtitle: ROS系统下几个坐标系详解；封面：工程11号楼一角，摄于杏花长廊
 author: 永清
 categories: ROS
 banner:

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: VTK库cmake编译时找不到Qt5UiPlugin_DIR和QT5Sql_DIR
-subtitle: 一个偶然发现的问题
+subtitle: 一个偶然发现的问题；封面：贡橙神兽
 author: 永清
 categories: 环境配置
 banner:
