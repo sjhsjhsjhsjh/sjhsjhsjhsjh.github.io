@@ -11,7 +11,7 @@ banner:
   min_height: "38vh"
   heading_style: "font-size: 4.25em; font-weight: bold; text-decoration: underline"
   subheading_style: "color: gold"
-tags: ML python tensorflow
+tags: KarmanFilter math
 ---
 
 >  “如果你不能把它解释地足够简洁，说明你还不够理解它。”    ————阿尔伯特·爱因斯坦
