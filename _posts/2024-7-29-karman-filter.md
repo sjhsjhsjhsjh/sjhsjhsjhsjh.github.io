@@ -108,7 +108,7 @@ $$\sigma^2=\frac{1}{N}\sum^{N}_{n=1}(x-\mu)^2$$
 
 前面的$E(\frac{1}{N}\sum^{N}_{i=1}(x_i-\mu)^2)$是真实的总体方差，那么这个减掉的东西到底是什么呢？我们推导一下：
 
-$$E((\overline{X}-\mu))=Var(\overline{X})$$
+$$E((\overline{X}-\mu)^2)=Var(\overline{X})$$
 
 这个是很显然的，你把方差公式里的N令为1就是这样。展开$\overline{X}$，有：
 
@@ -116,15 +116,15 @@ $$Var(\overline{X})=Var(\frac{1}{N}\sum^{N}_{i=1}{x_i})$$
 
 根据方差的性质，提出来$\frac{1}{N}$，有：
 
-$$Var(\frac{1}{N}\sum^{N}_{i=1}{x_i})=\frac{1}{N}Var(\sum^{N}_{i=1}{x_i})$$
+$$Var(\frac{1}{N}\sum^{N}_{i=1}{x_i})=\frac{1}{N^2}Var(\sum^{N}_{i=1}{x_i})$$
 
 然后这里需要注意，随机抽样的样本反映总体的特性，我的意思是，当总体服从方差为$\sigma^2$的时候，单个样本也服从方差为$\sigma^2$的分布。所以呢，
 
-$$\frac{1}{N}Var(\sum^{N}_{i=1}{x_i})=\frac{1}{N}N\sigma^2=\sigma^2$$
+$$\frac{1}{N^2}Var(\sum^{N}_{i=1}{x_i})=\frac{1}{N^2}N\sigma^2=\frac{1}{N}\sigma^2$$
 
 综合上面的推导，有：
 
-$$Var(\overline{X})=\sigma^2$$
+$$Var(\overline{X})=\frac{\sigma^2}{N}$$
 
 也就是，均值的方差也是服从总体的方差。那么考察刚刚推导中样本方差和总体方差有误差的部分：
 
