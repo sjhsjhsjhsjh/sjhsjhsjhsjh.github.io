@@ -1,9 +1,9 @@
 ---
 layout: post
-title: Linux内核学习笔记1
-subtitle: 内核学习笔记
+title: Linux内核学习笔记1-进程与调度
+subtitle: 内核学习笔记；封面：X：@fleia0124
 banner:
-  image: /assets/images/banners/11.jpg
+  image: /assets/images/banners/10.jpg
   opacity: 0.618
   background: "#000"
   height: "100vh"
@@ -11,7 +11,6 @@ banner:
   heading_style: "font-size: 4.25em; font-weight: bold; text-decoration: underline"
   subheading_style: "color: gold"
 tags: OS linux
-published: false
 ---
 
 ## 单内核和微内核
@@ -98,5 +97,284 @@ this_cpu_write(current_task, next_p);
 &emsp;&emsp;朴素的抢占式：当进程进入可运行状态，立即投入运行。在linux系统中，抢占时机取决于就绪的进程消耗了多少处理器时间比，如果小于正在运行的进程，那么发生抢占。下面是一个实际例子：系统正在运行一个文本编辑器和一个视频编码器，对于前者，我们希望我们键入之后立即反应，对于后者，我们并不关心它是不是立刻运行的，当然，我们希望能够尽早完成编码任务。在百分比的使用调度下，假设二者的nice值都是0，那么二者将均分处理器使用时间。但是，编辑器在处理完输入后，进入等待，也即非可运行状态，从而被编码器抢占；但是当编辑器收到了键入被唤醒之后，因为其使用时间远小于50%，编码器远大于50%，编辑器没有消耗系统承诺的50%时间片，自然触发了抢占。
 
 > 评：真是天才的想法，谁想出来的！不过这样，我们希望IO密集型能够自己挂起，如果不挂起，属于是损人不利己：既让计算密集型没有抢到时间，自己也被等待时间耽误了，下一次触发输入的时候还不能以高优先级抢占。不知道linux是怎么处理这一情况的？
->
-> 
+
+&emsp;&emsp;除了这样的规则，还应当设置最小时间片，否则当进程数量十分多的时候，按照百分比分配那么每个进程分到的时间片都很小，资源全部浪费在切换上下文上面了。所以要设立最小时间片。
+
+&emsp;&emsp;调度延迟：每个进程都至少运行一次的时间间隔。在达不到最小时间片的情况下，这个调度延迟是动态变化的。当每个进程的占用时间到最小时间片之后，调度延迟=进程数量*最小时间片
+
+### CFS调度器的实现
+
+#### 总体描述
+
+&emsp;&emsp;首先，存在一个调度对象队列`cfs_rq`，其中每个对象进程都具有自己的虚拟时钟。某个进程抢占CPU时间n后，其虚拟运行时间会增长n而其它进程的不变。所谓虚拟运行时间，是指被优先级加权之后的时间，例如A进程实际运行了1ms，B进程实际运行了3ms，但是经过优先级加权公式计算之后，它们的实际运行时间都是3ms。所以，CFS调度器只需要保证虚拟运行时间相等就可以了；所以调度策略就是找到虚拟运行时间最小的进程。注意这里，如果有许多进程虚拟运行时间都不达标，CFS也不需要再考虑优先级的问题，因为虚拟运行时间已经是加权之后的了。
+
+&emsp;&emsp;一个进程所能获取的CPU时间比例是：
+
+$$A进程获取的时间比例=\frac{A的权重}{所有进程的权重之和}$$
+
+&emsp;&emsp;分配时间是按照调度区来分配的，所以实际获得的CPU时间是：
+
+$$进程获取的CPU时间=调度区\times\frac{进程权重}{所有的进程权重之和}$$
+
+&emsp;&emsp;虚拟运行时间的计算公式是：
+
+$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重} $$
+
+$$实际运行时间=调度周期\times\frac{进程权重}{所有的进程权重之和}$$
+
+代入上式，有：
+
+$$虚拟运行时间=调度周期\times\frac{1024}{所有进程的权重之和}$$
+
+得出结论：在 相同的 调度周期 中 , 所有 运行在该 CPU 上的进程 的 " 虚拟运行时间 " 是相同的 ,在 CFS 调度器 对 进程 进行调度运行时 , 找到 " 虚拟运行时间 " 最小的进程 运行即可。<br>
+
+#### nice值对于权重的影响：
+
+```c
+const int sched_prio_to_weight[40] = {
+ /* -20 */     88761,     71755,     56483,     46273,     36291,
+ /* -15 */     29154,     23254,     18705,     14949,     11916,
+ /* -10 */      9548,      7620,      6100,      4904,      3906,
+ /*  -5 */      3121,      2501,      1991,      1586,      1277,
+ /*   0 */      1024,       820,       655,       526,       423,
+ /*   5 */       335,       272,       215,       172,       137,
+ /*  10 */       110,        87,        70,        56,        45,
+ /*  15 */        36,        29,        23,        18,        15,
+}; 
+```
+
+&emsp;&emsp;计算方式是:$weight=\frac{1024}{1.25^{nice}}$ .公式中的1.25取值依据是：进程每降低一个nice值，将多获得10% cpu的时间。公式中以1024权重为基准值计算得来，1024权重对应nice值为0，其权重被称为NICE_0_LOAD。默认情况下，大部分进程的权重基本都是NICE_0_LOAD。<br>
+
+值得一提的是，考察这个公式：
+
+$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重} $$
+
+其中分子是1024，这里涉及到除法，为了提升除法的精度，内核采用先放大再缩小的方法：
+
+$$
+\begin{aligned}
+  虚拟运行时间 &= 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重}   \\
+  &= (实际运行时间 \times \frac{1024 * 2 ^{32}}{进程权重}) >> 32 \\
+  &= (实际运行时间 \times 1024 \times inv\_weight) >> 32 \\
+\end{aligned}
+$$
+
+其中，
+
+$$inv\_weight = \frac{2^{32}}{进程权重}$$
+
+这个值同样已经写死了：
+
+```c
+const u32 sched_prio_to_wmult[40] = {
+ /* -20 */     48388,     59856,     76040,     92818,    118348,
+ /* -15 */    147320,    184698,    229616,    287308,    360437,
+ /* -10 */    449829,    563644,    704093,    875809,   1099582,
+ /*  -5 */   1376151,   1717300,   2157191,   2708050,   3363326,
+ /*   0 */   4194304,   5237765,   6557202,   8165337,  10153587,
+ /*   5 */  12820798,  15790321,  19976592,  24970740,  31350126,
+ /*  10 */  39045157,  49367440,  61356676,  76695844,  95443717,
+ /*  15 */ 119304647, 148102320, 186737708, 238609294, 286331153,
+}; 
+```
+
+这是将实际时间转化为虚拟时间的函数：实现了 $虚拟运行时间=实际运行时间 \times 1024 \times inv\_weight$ .其中传入的weight是1024.这里我一开始总是没看懂以为是真正的weight。
+
+```c
+/*
+ * delta_exec * weight / lw.weight
+ *   OR
+ * (delta_exec * (weight * lw->inv_weight)) >> WMULT_SHIFT
+ *
+ * Either weight := NICE_0_LOAD and lw \e sched_prio_to_wmult[], in which case
+ * we're guaranteed shift stays positive because inv_weight is guaranteed to
+ * fit 32 bits, and NICE_0_LOAD gives another 10 bits; therefore shift >= 22.
+ *
+ * Or, weight =< lw.weight (because lw.weight is the runqueue weight), thus
+ * weight/lw.weight <= 1, and therefore our shift will also be positive.
+ */
+static u64 __calc_delta(u64 delta_exec, unsigned long weight, struct load_weight *lw)
+{
+	u64 fact = scale_load_down(weight);
+	u32 fact_hi = (u32)(fact >> 32);
+	int shift = WMULT_SHIFT;
+	int fs;
+
+	__update_inv_weight(lw);
+
+	if (unlikely(fact_hi)) {
+		fs = fls(fact_hi);
+		shift -= fs;
+		fact >>= fs;
+	}
+
+	fact = mul_u32_u32(fact, lw->inv_weight);
+
+	fact_hi = (u32)(fact >> 32);
+	if (fact_hi) {
+		fs = fls(fact_hi);
+		shift -= fs;
+		fact >>= fs;
+	}
+
+	return mul_u64_u32_shr(delta_exec, fact, shift);
+}
+
+/*
+ * delta /= w
+ */
+static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
+{
+  // 这里竟然写了unlikely，他们认为用户大概率不会手动调这个
+	if (unlikely(se->load.weight != NICE_0_LOAD))
+		delta = __calc_delta(delta, NICE_0_LOAD, &se->load);
+
+	return delta;
+}
+```
+
+从`calc_delta_fair`函数可以看出，当NICE值为0的时候，虚拟运行时间就等于实际运行时间，不需要计算。所以calc_delta_fair函数返回的就是进程的虚拟运行时间。
+
+#### 时间记账
+
+&emsp;&emsp;分配一个时间片给到当前的进程，每当CPU时钟过了一个时钟周期，时间片都会减一，减到0为止，此进程可以被其它进程抢占。程序中实现了一个时间记录结构体，记录时间片相关的数据，该结构体会被嵌入进程描述符`task_struct`中。
+
+```c
+/*
+ * Update the current task's runtime statistics.
+ */
+
+// cfs_rq：CFS-related fields in a runqueue
+static void update_curr(struct cfs_rq *cfs_rq)
+{
+	struct sched_entity *curr = cfs_rq->curr;
+	s64 delta_exec;
+
+  // 异常处理
+	if (unlikely(!curr))
+		return;
+
+  // 此函数计算两次调用之间的间隔时间，看下面
+	delta_exec = update_curr_se(rq_of(cfs_rq), curr);
+	if (unlikely(delta_exec <= 0))
+		return;
+
+  // 计算绝对时间
+	curr->vruntime += calc_delta_fair(delta_exec, curr);
+  // 更新deadline，下面有解析
+	update_deadline(cfs_rq, curr);
+  // 维护进程列表里面的最小运行时间
+	update_min_vruntime(cfs_rq);
+
+	if (entity_is_task(curr))
+		update_curr_task(task_of(curr), delta_exec);
+
+	account_cfs_rq_runtime(cfs_rq, delta_exec);
+}
+```
+
+下面是更新delta时间的函数，写的很清楚：
+
+```c
+static s64 update_curr_se(struct rq *rq, struct sched_entity *curr)
+{
+  // 获取当前时间
+	u64 now = rq_clock_task(rq);
+	s64 delta_exec;
+
+  // 当前 - 之前调用的时间
+	delta_exec = now - curr->exec_start;
+	if (unlikely(delta_exec <= 0))
+		return delta_exec;
+
+  // 更新“之前调用的时间”
+	curr->exec_start = now;
+  // 更新总用时
+	curr->sum_exec_runtime += delta_exec;
+
+	if (schedstat_enabled()) {
+		struct sched_statistics *stats;
+
+		stats = __schedstats_from_se(curr);
+		__schedstat_set(stats->exec_max,
+				max(delta_exec, stats->exec_max));
+	}
+
+	return delta_exec;
+}
+```
+
+下面是核心的，计算终结时间的函数：
+
+```c
+/*
+ * XXX: strictly: vd_i += N*r_i/w_i such that: vd_i > ve_i
+ * this is probably good enough.  // 来自老一辈开发者的自信
+ */
+// vd_i:虚拟终结时间，ve_i：虚拟结束时间，w_i：权重，由nice值决定
+// 这个函数运行完了之后，会更新cfs_rq里面的deadline和slice
+static void update_deadline(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+  // 如果当前的运行时间已经超过了该死亡的时间，那么啥也不干（已经超时了）
+	if ((s64)(se->vruntime - se->deadline) < 0)
+		return;
+
+	/*
+	 * For EEVDF the virtual time slope is determined by w_i (iow.
+	 * nice) while the request time r_i is determined by
+	 * sysctl_sched_base_slice.
+	 */
+  // 分配一个新的时间片
+	se->slice = sysctl_sched_base_slice;
+
+	/*
+	 * EEVDF: vd_i = ve_i + r_i / w_i
+	 */
+  // 更新它该死的时间
+	se->deadline = se->vruntime + calc_delta_fair(se->slice, se);
+
+	/*
+	 * The task has consumed its request, reschedule.
+	 */
+  // 当前是否是多任务队列，如果是多任务的，那么调用上下文调度器重新调度
+	if (cfs_rq->nr_running > 1) {
+		resched_curr(rq_of(cfs_rq));
+		clear_buddies(cfs_rq, se);
+	}
+}
+
+```
+
+更新最小
+
+```c
+// 更新最小运行时间的进程，决定了谁该下一个使用CPU，其实就是个打擂台哈哈，我以为是什么非常高级的数据结构呢
+static u64 __update_min_vruntime(struct cfs_rq *cfs_rq, u64 vruntime)
+{
+  // 获取当前的最小值
+	u64 min_vruntime = cfs_rq->min_vruntime;
+	/*
+	 * open coded max_vruntime() to allow updating avg_vruntime
+	 */
+  // 相减以判正负
+	s64 delta = (s64)(vruntime - min_vruntime);
+  // 大于0，也就是当前运行时间大于最小运行时间
+	if (delta > 0) {
+    // 更新平均虚拟运行时间
+		avg_vruntime_update(cfs_rq, delta);
+    // 更新最小值
+		min_vruntime = vruntime;
+	}
+	return min_vruntime;
+}
+```
+
+## 后记
+
+&emsp;&emsp;这次我首先在代码阅读工具上弄了一天时间，因为vscode是无法解析如此巨量的内核代码的；然后听说vim+ctag可以方便的进行阅读，可是尝试之后发现非常不智能，当我需要跳转到函数的定义的时候，它总是给我搞出来一堆引用的地方，我还得一个个看哪一个才是定义。最后尝试了clang，发现确实好用。
+
+&emsp;&emsp;学习内核代码是一件需要正确方法的事。古人说，吾尝终日而思矣，不如须臾之所学也。又有云，学而不思则罔，思而不学则殆。对于这种新知识尤其是如此。在这件事里，思就是自己看代码思考，学就是阅读别人的学习成果。一开始我以为我能自己看懂调度器的算法，磕了一天虽然有所理解，但是仍然似懂非懂，可能看明白了一些函数，但是没法串联起来说个明白。后来我改变方法，搜索了其它的博客，只需须臾阅读，便可知其原理。然后再反过来阅读代码，方才是学会。
+
+## 参考博客
+
+[CFS调度器基本原理](https://www.cnblogs.com/linhaostudy/p/10298511.html)

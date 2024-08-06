@@ -1,10 +1,10 @@
 ---
 layout: post
-title: 卡尔曼滤波学习笔记3
+title: 卡尔曼滤波学习笔记3（没写完）
 subtitle: 一维无过程噪声的卡尔曼滤波,以及多维卡尔曼滤波的基础知识
 categories: math
 banner:
-  image: /assets/images/banners/10.jpg
+  image: /assets/images/banners/11.jpg
   opacity: 0.618
   background: "#000"
   height: "100vh"
