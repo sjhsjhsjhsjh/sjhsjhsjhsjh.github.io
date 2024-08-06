@@ -118,7 +118,7 @@ $$进程获取的CPU时间=调度区\times\frac{进程权重}{所有的进程权
 
 &emsp;&emsp;虚拟运行时间的计算公式是：
 
-$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重} $$
+$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE0LOAD}{进程权重} $$
 
 $$实际运行时间=调度周期\times\frac{进程权重}{所有的进程权重之和}$$
 
@@ -147,13 +147,13 @@ const int sched_prio_to_weight[40] = {
 
 值得一提的是，考察这个公式：
 
-$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重} $$
+$$ 虚拟运行时间 = 实际运行时间 \times \frac{NICE0LOAD}{进程权重} $$
 
 其中分子是1024，这里涉及到除法，为了提升除法的精度，内核采用先放大再缩小的方法：
 
 $$
 \begin{aligned}
-  虚拟运行时间 &= 实际运行时间 \times \frac{NICE\_0\_LOAD}{进程权重}   \\
+  虚拟运行时间 &= 实际运行时间 \times \frac{NICE0LOAD}{进程权重}   \\
   &= (实际运行时间 \times \frac{1024 * 2 ^{32}}{进程权重}) >> 32 \\
   &= (实际运行时间 \times 1024 \times inv\_weight) >> 32 \\
 \end{aligned}
